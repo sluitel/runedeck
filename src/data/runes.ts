@@ -1,0 +1,148 @@
+import { RuneData } from '../models/Rune';
+import { RuneRarity } from '../models/Enums';
+
+export const ALL_RUNES: RuneData[] = [
+  // Common Runes
+  {
+    runeId: 'rune_burning_candle',
+    runeName: 'Burning Candle',
+    effectId: 'start_energy',
+    description: 'Start each combat with 1 extra Energy (this turn only).',
+    rarity: RuneRarity.Common,
+  },
+  {
+    runeId: 'rune_thorn_ring',
+    runeName: 'Thorn Ring',
+    effectId: 'thorns_on_hit',
+    description: 'Deal 2 damage to attacker whenever you take damage.',
+    rarity: RuneRarity.Common,
+  },
+  {
+    runeId: 'rune_inkwell',
+    runeName: 'Inkwell',
+    effectId: 'extra_draw',
+    description: 'Draw 1 extra card at the start of each turn.',
+    rarity: RuneRarity.Common,
+  },
+  {
+    runeId: 'rune_blood_vial',
+    runeName: 'Blood Vial',
+    effectId: 'heal_start',
+    description: 'At the start of each combat, heal 3 HP.',
+    rarity: RuneRarity.Common,
+  },
+  {
+    runeId: 'rune_iron_heart',
+    runeName: 'Iron Heart',
+    effectId: 'block_start',
+    description: 'At the start of each combat, gain 5 Block.',
+    rarity: RuneRarity.Common,
+  },
+  {
+    runeId: 'rune_war_paint',
+    runeName: 'War Paint',
+    effectId: 'strength_start',
+    description: 'At the start of each combat, gain 1 Strength.',
+    rarity: RuneRarity.Common,
+  },
+  {
+    runeId: 'rune_ancient_coin',
+    runeName: 'Ancient Coin',
+    effectId: 'bonus_gold',
+    description: 'Gain 25% more gold from combat.',
+    rarity: RuneRarity.Common,
+  },
+  {
+    runeId: 'rune_stone_skin',
+    runeName: 'Stone Skin',
+    effectId: 'max_hp',
+    description: 'Gain +10 max HP.',
+    rarity: RuneRarity.Common,
+  },
+  // Uncommon Runes
+  {
+    runeId: 'rune_cursed_blade',
+    runeName: 'Cursed Blade',
+    effectId: 'damage_boost',
+    description: 'Deal 2 extra damage with all attacks.',
+    rarity: RuneRarity.Uncommon,
+  },
+  {
+    runeId: 'rune_lucky_charm',
+    runeName: 'Lucky Charm',
+    effectId: 'rare_chance',
+    description: 'Rare cards appear more frequently in draft.',
+    rarity: RuneRarity.Uncommon,
+  },
+  {
+    runeId: 'rune_golden_idol',
+    runeName: 'Golden Idol',
+    effectId: 'bonus_gold_large',
+    description: 'Gain 50% more gold from combat.',
+    rarity: RuneRarity.Uncommon,
+  },
+  {
+    runeId: 'rune_frost_ring',
+    runeName: 'Frost Ring',
+    effectId: 'dexterity_start',
+    description: 'At the start of each combat, gain 1 Dexterity.',
+    rarity: RuneRarity.Uncommon,
+  },
+  {
+    runeId: 'rune_boot_of_speed',
+    runeName: 'Boot of Speed',
+    effectId: 'extra_energy',
+    description: 'Gain 1 extra Energy on the first turn of each combat.',
+    rarity: RuneRarity.Uncommon,
+  },
+  {
+    runeId: 'rune_preservation_flask',
+    runeName: 'Preservation Flask',
+    effectId: 'heal_between',
+    description: 'Heal 5 HP after each combat.',
+    rarity: RuneRarity.Uncommon,
+  },
+  // Rare Runes
+  {
+    runeId: 'rune_soul_anchor',
+    runeName: 'Soul Anchor',
+    effectId: 'cheat_death',
+    description: 'Once per run, survive a killing blow with 1 HP. Then this rune is consumed.',
+    rarity: RuneRarity.Rare,
+  },
+  {
+    runeId: 'rune_philosophers_stone',
+    runeName: "Philosopher's Stone",
+    effectId: 'permanent_energy',
+    description: 'Gain +1 Energy at the start of each turn. All enemies start with 1 Strength.',
+    rarity: RuneRarity.Rare,
+  },
+  {
+    runeId: 'rune_dead_branch',
+    runeName: 'Dead Branch',
+    effectId: 'exhaust_draw',
+    description: 'Whenever a card is exhausted, add a random card to your hand.',
+    rarity: RuneRarity.Rare,
+  },
+  {
+    runeId: 'rune_mark_of_pain',
+    runeName: 'Mark of Pain',
+    effectId: 'energy_plus',
+    description: 'Gain +1 Energy at the start of each turn.',
+    rarity: RuneRarity.Rare,
+  },
+  {
+    runeId: 'rune_ornamental_fan',
+    runeName: 'Ornamental Fan',
+    effectId: 'block_on_attack',
+    description: 'Every 3 attacks played, gain 4 Block.',
+    rarity: RuneRarity.Rare,
+  },
+  {
+    runeId: 'rune_shovel',
+    runeName: 'Shovel',
+    effectId: 'dig',
+    description: 'Rest nodes now also let you dig for a relic.',
+    rarity: RuneRarity.Rare,
+  },
+];
