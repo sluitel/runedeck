@@ -229,8 +229,17 @@ export class RunManager {
   selectRewardRune(): void {
     if (!this.rewardRune) return;
     if (this.state.runes.length >= this.state.maxRuneSlots) return;
-    this.state.runes.push(createRuneInstance(this.rewardRune));
+    this.addRune(this.rewardRune);
     this.rewardRune = null;
+  }
+
+  private addRune(runeData: RuneData): void {
+    this.state.runes.push(createRuneInstance(runeData));
+    // Apply passive rune effects
+    if (runeData.runeId === 'rune_stone_skin') {
+      this.state.maxHp += 10;
+      this.state.currentHp += 10;
+    }
   }
 
   proceedAfterReward(): void {
@@ -269,6 +278,19 @@ export class RunManager {
   restHeal(): void {
     const healAmount = Math.floor(this.state.maxHp * 0.3);
     this.state.currentHp = Math.min(this.state.currentHp + healAmount, this.state.maxHp);
+    this.currentPhase = 'map';
+  }
+
+  canDig(): boolean {
+    return this.state.runes.some(r => r.data.runeId === 'rune_shovel');
+  }
+
+  restDig(): void {
+    if (!this.canDig()) return;
+    const rune = this.rng.pick(ALL_RUNES);
+    if (this.state.runes.length < this.state.maxRuneSlots) {
+      this.addRune(rune);
+    }
     this.currentPhase = 'map';
   }
 
@@ -332,7 +354,7 @@ export class RunManager {
       this.state.deck.push(createCardInstance(item.card));
     } else if (item.type === 'rune' && item.rune) {
       if (this.state.runes.length < this.state.maxRuneSlots) {
-        this.state.runes.push(createRuneInstance(item.rune));
+        this.addRune(item.rune);
       }
     }
 
@@ -377,7 +399,7 @@ export class RunManager {
       case 'rune': {
         const rune = this.rng.pick(ALL_RUNES);
         if (this.state.runes.length < this.state.maxRuneSlots) {
-          this.state.runes.push(createRuneInstance(rune));
+          this.addRune(rune);
         }
         break;
       }
@@ -404,7 +426,7 @@ export class RunManager {
 
   collectTreasureRune(): void {
     if (!this.rewardRune || this.state.runes.length >= this.state.maxRuneSlots) return;
-    this.state.runes.push(createRuneInstance(this.rewardRune));
+    this.addRune(this.rewardRune);
     this.rewardRune = null;
   }
 

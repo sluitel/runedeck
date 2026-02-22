@@ -15,6 +15,7 @@ export interface CardData {
   upgradedCardId?: string;
   targetType: TargetType;
   characterClass: string;
+  playCondition?: 'all_attacks' | 'turn_1' | 'empty_draw_pile';
 }
 
 export interface CardInstance {

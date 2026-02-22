@@ -11,6 +11,11 @@ export class DealDamageEffect implements ICardEffect {
 
     let damage = value;
 
+    // Cursed Blade rune: +2 damage to all attacks
+    if (state.runes.some(r => r.data.runeId === 'rune_cursed_blade')) {
+      damage += 2;
+    }
+
     // Apply player Strength
     damage += getBuffStacks(state.playerBuffs, BuffType.Strength);
 

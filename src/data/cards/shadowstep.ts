@@ -163,7 +163,7 @@ export const SHADOWSTEP_CARDS: CardData[] = [
     type: CardType.Attack,
     rarity: CardRarity.Common,
     energyCost: 1,
-    effectId: 'deal_damage',
+    effectId: 'bane',
     effectValue: 7,
     description: 'Deal 7 damage. If the enemy is Poisoned, deal 7 again.',
     isUpgraded: false,
@@ -224,6 +224,7 @@ export const SHADOWSTEP_CARDS: CardData[] = [
     isUpgraded: false,
     targetType: TargetType.Enemy,
     characterClass: 'Shadowstep' as const,
+    playCondition: 'turn_1',
   },
   {
     cardId: 'ss_blade_dance',
@@ -359,7 +360,7 @@ export const SHADOWSTEP_CARDS: CardData[] = [
     type: CardType.Skill,
     rarity: CardRarity.Rare,
     energyCost: 1,
-    effectId: 'apply_poison',
+    effectId: 'double_poison',
     effectValue: 0,
     description: 'Double the enemy\'s Poison.',
     isUpgraded: false,
@@ -420,5 +421,6 @@ export const SHADOWSTEP_CARDS: CardData[] = [
     isUpgraded: false,
     targetType: TargetType.All,
     characterClass: 'Shadowstep' as const,
+    playCondition: 'empty_draw_pile',
   },
 ];

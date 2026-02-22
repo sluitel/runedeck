@@ -22,6 +22,7 @@ export interface CombatState {
   combatOver: boolean;
   playerWon: boolean;
   combatLog: string[];
+  attacksPlayedThisCombat: number;
 }
 
 export function createCombatState(
@@ -52,5 +53,6 @@ export function createCombatState(
     combatOver: false,
     playerWon: false,
     combatLog: [],
+    attacksPlayedThisCombat: 0,
   };
 }

@@ -1,5 +1,5 @@
 import { CombatState, createCombatState } from './CombatState';
-import { CardInstance } from '../models/Card';
+import { CardInstance, createCardInstance } from '../models/Card';
 import { EnemyInstance, getEnemyCurrentIntent, advanceEnemyIntent } from '../models/Enemy';
 import { RuneInstance } from '../models/Rune';
 import { Buff } from '../models/Buff';
@@ -7,6 +7,7 @@ import { BuffType, IntentType, CardType } from '../models/Enums';
 import { getEffect } from './effects/EffectRegistry';
 import { getBuffStacks, addBuff, tickDebuffs, hasBuff } from './BuffUtils';
 import { SeededRandom } from './SeededRandom';
+import { IRONCLAD_CARDS, HEXBLADE_CARDS, SHADOWSTEP_CARDS, NEUTRAL_CARDS } from '../data/cards/index';
 
 export interface CombatResult {
   playerWon: boolean;
@@ -108,6 +109,21 @@ export class CombatEngine {
     // Check Entangle — can't play attacks
     if (card.data.type === CardType.Attack && hasBuff(this.state.playerBuffs, BuffType.Entangle)) return false;
 
+    // Check play conditions
+    if (card.data.playCondition) {
+      switch (card.data.playCondition) {
+        case 'all_attacks':
+          if (this.state.hand.some(c => c.instanceId !== instanceId && c.data.type !== CardType.Attack)) return false;
+          break;
+        case 'turn_1':
+          if (this.state.turn !== 1) return false;
+          break;
+        case 'empty_draw_pile':
+          if (this.state.drawPile.length > 0) return false;
+          break;
+      }
+    }
+
     return true;
   }
 
@@ -147,10 +163,18 @@ export class CombatEngine {
 
     // Rage mechanic: gain block when playing attacks
     if (card.data.type === CardType.Attack) {
+      this.state.attacksPlayedThisCombat++;
+
       const rageStacks = getBuffStacks(this.state.playerBuffs, BuffType.Rage);
       if (rageStacks > 0) {
         this.state.playerBlock += rageStacks;
         this.state.combatLog.push(`Rage: gained ${rageStacks} Block`);
+      }
+
+      // Ornamental Fan: every 3 attacks, gain 4 Block
+      if (this.hasRune('rune_ornamental_fan') && this.state.attacksPlayedThisCombat % 3 === 0) {
+        this.state.playerBlock += 4;
+        this.state.combatLog.push('Ornamental Fan: gained 4 Block');
       }
     }
 
@@ -165,12 +189,20 @@ export class CombatEngine {
     });
 
     // Power cards are exhausted after play
+    let wasExhausted = false;
     if (card.data.type === CardType.Power) {
       this.state.exhaustPile.push(card);
+      wasExhausted = true;
     } else if (card.data.secondaryEffectId === 'exhaust') {
       this.state.exhaustPile.push(card);
+      wasExhausted = true;
     } else {
       this.state.discardPile.push(card);
+    }
+
+    // Dead Branch: add random card to hand when a card is exhausted
+    if (wasExhausted && this.hasRune('rune_dead_branch')) {
+      this.addRandomCardToHand();
     }
 
     // Check for enemy deaths
@@ -500,7 +532,7 @@ export class CombatEngine {
           }
           break;
         case 'rune_inkwell':
-          // Handled in drawCards logic
+          // Handled in endTurn draw logic
           break;
         case 'rune_thorn_ring':
           // Handled in enemyAttack
@@ -526,6 +558,47 @@ export class CombatEngine {
             this.state.combatLog.push('War Paint: +1 Strength');
           }
           break;
+        case 'rune_frost_ring':
+          if (trigger === 'combat_start') {
+            addBuff(this.state.playerBuffs, BuffType.Dexterity, 1);
+            this.state.combatLog.push('Frost Ring: +1 Dexterity');
+          }
+          break;
+        case 'rune_boot_of_speed':
+          if (trigger === 'combat_start') {
+            this.state.playerEnergy++;
+            this.state.combatLog.push('Boot of Speed: +1 Energy on first turn');
+          }
+          break;
+        case 'rune_cursed_blade':
+          // Handled as a damage modifier in playCard via DealDamageEffect
+          // The extra damage is applied by checking hasRune in deal_damage
+          break;
+        case 'rune_philosophers_stone':
+          if (trigger === 'combat_start') {
+            // Enemies start with 1 Strength
+            for (const enemy of this.state.enemies) {
+              addBuff(enemy.buffs, BuffType.Strength, 1);
+            }
+            this.state.combatLog.push("Philosopher's Stone: enemies gain 1 Strength");
+          }
+          if (trigger === 'turn_start') {
+            this.state.playerEnergy++;
+            this.state.combatLog.push("Philosopher's Stone: +1 Energy");
+          }
+          break;
+        case 'rune_mark_of_pain':
+          if (trigger === 'turn_start') {
+            this.state.playerEnergy++;
+            this.state.combatLog.push('Mark of Pain: +1 Energy');
+          }
+          break;
+        case 'rune_ornamental_fan':
+          // Handled in playCard attack tracking
+          break;
+        case 'rune_dead_branch':
+          // Handled in playCard exhaust logic
+          break;
       }
     }
   }
@@ -539,6 +612,14 @@ export class CombatEngine {
     if (idx !== -1) {
       this.state.runes.splice(idx, 1);
     }
+  }
+
+  private addRandomCardToHand(): void {
+    const allCards = [...IRONCLAD_CARDS, ...HEXBLADE_CARDS, ...SHADOWSTEP_CARDS, ...NEUTRAL_CARDS];
+    const randomCard = this.rng.pick(allCards);
+    const instance = createCardInstance(randomCard);
+    this.state.hand.push(instance);
+    this.state.combatLog.push(`Dead Branch: added ${randomCard.cardName} to hand`);
   }
 
   private trackDamageDealt(): void {
@@ -560,10 +641,22 @@ export class CombatEngine {
   }
 
   getCombatResult(): CombatResult {
+    let goldEarned = this.state.playerWon ? 15 + this.rng.nextInt(0, 9) : 0;
+
+    // Gold bonus runes
+    if (goldEarned > 0) {
+      if (this.hasRune('rune_ancient_coin')) {
+        goldEarned = Math.floor(goldEarned * 1.25);
+      }
+      if (this.hasRune('rune_golden_idol')) {
+        goldEarned = Math.floor(goldEarned * 1.5);
+      }
+    }
+
     return {
       playerWon: this.state.playerWon,
       playerHp: this.state.playerHp,
-      goldEarned: this.state.playerWon ? 15 + this.rng.nextInt(0, 9) : 0,
+      goldEarned,
       cardsPlayed: this.totalCardsPlayed,
       damageDealt: this.totalDamageDealt,
     };

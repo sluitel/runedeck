@@ -180,6 +180,7 @@ export const IRONCLAD_CARDS: CardData[] = [
     isUpgraded: false,
     targetType: TargetType.Enemy,
     characterClass: 'Ironclad' as const,
+    playCondition: 'all_attacks',
   },
   {
     cardId: 'ic_flex',
