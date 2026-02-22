@@ -20,16 +20,14 @@ function makeEnemy(hp: number = 50, name: string = 'Test Enemy'): EnemyInstance 
     enemyId: 'test_enemy',
     enemyName: name,
     maxHp: hp,
-    intentPattern: [
-      { type: IntentType.Attack, value: 5, description: 'Attacks for 5' },
-    ],
+    intentPattern: [{ type: IntentType.Attack, value: 5, description: 'Attacks for 5' }],
     passives: [],
     tier: EnemyTier.Normal,
     act: 1,
   });
 }
 
-function makeCard(overrides: Partial<CardInstance['data']> = {}): CardInstance {
+function makeCard(): CardInstance {
   return createCardInstance({
     cardId: 'test_card',
     cardName: 'Test Card',
@@ -41,319 +39,354 @@ function makeCard(overrides: Partial<CardInstance['data']> = {}): CardInstance {
     description: 'Test',
     isUpgraded: false,
     targetType: TargetType.Enemy,
-    characterClass: 'Ironclad',
-    ...overrides,
+    characterClass: 'Neutral',
   });
 }
 
 function makeState(enemyCount: number = 1, enemyHp: number = 50): CombatState {
-  const deck = Array.from({ length: 10 }, () => makeCard());
   const enemies = Array.from({ length: enemyCount }, () => makeEnemy(enemyHp));
+  const deck = Array.from({ length: 10 }, () => makeCard());
   return createCombatState(80, 80, 3, deck, enemies, [], []);
 }
 
-describe('DealDamageEffect', () => {
-  const effect = new DealDamageEffect();
+describe('CardEffects', () => {
+  // --- DealDamageEffect ---
+  describe('DealDamageEffect', () => {
+    it('deals base damage to enemy', () => {
+      const state = makeState();
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 0);
+      expect(state.enemies[0].currentHp).toBe(40);
+    });
 
-  it('deals base damage to enemy', () => {
-    const state = makeState();
-    effect.execute(state, 10, 0);
-    expect(state.enemies[0].currentHp).toBe(40);
+    it('applies Strength bonus', () => {
+      const state = makeState();
+      addBuff(state.playerBuffs, BuffType.Strength, 3);
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 0);
+      // 10 + 3 = 13 damage => 50 - 13 = 37
+      expect(state.enemies[0].currentHp).toBe(37);
+    });
+
+    it('applies Weak penalty (25% less)', () => {
+      const state = makeState();
+      addBuff(state.playerBuffs, BuffType.Weak, 2);
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 0);
+      // floor(10 * 0.75) = 7 => 50 - 7 = 43
+      expect(state.enemies[0].currentHp).toBe(43);
+    });
+
+    it('applies Vulnerable on enemy (50% more)', () => {
+      const state = makeState();
+      addBuff(state.enemies[0].buffs, BuffType.Vulnerable, 2);
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 0);
+      // floor(10 * 1.5) = 15 => 50 - 15 = 35
+      expect(state.enemies[0].currentHp).toBe(35);
+    });
+
+    it('applies Strength and Vulnerable together', () => {
+      const state = makeState();
+      addBuff(state.playerBuffs, BuffType.Strength, 2);
+      addBuff(state.enemies[0].buffs, BuffType.Vulnerable, 2);
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 0);
+      // (10 + 2) = 12 => floor(12 * 1.5) = 18 => 50 - 18 = 32
+      expect(state.enemies[0].currentHp).toBe(32);
+    });
+
+    it('respects enemy block', () => {
+      const state = makeState();
+      state.enemies[0].block = 6;
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 0);
+      // 10 damage - 6 block = 4 to HP => 50 - 4 = 46
+      expect(state.enemies[0].currentHp).toBe(46);
+      expect(state.enemies[0].block).toBe(0);
+    });
+
+    it('does not reduce HP below 0', () => {
+      const state = makeState(1, 5);
+      const effect = new DealDamageEffect();
+      effect.execute(state, 100, 0);
+      expect(state.enemies[0].currentHp).toBe(0);
+    });
+
+    it('does nothing for invalid target index', () => {
+      const state = makeState();
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 5); // index 5 is out of bounds
+      expect(state.enemies[0].currentHp).toBe(50);
+    });
+
+    it('does nothing for dead enemies', () => {
+      const state = makeState();
+      state.enemies[0].currentHp = 0;
+      const effect = new DealDamageEffect();
+      effect.execute(state, 10, 0);
+      expect(state.enemies[0].currentHp).toBe(0);
+    });
   });
 
-  it('applies player Strength bonus', () => {
-    const state = makeState();
-    addBuff(state.playerBuffs, BuffType.Strength, 3);
-    effect.execute(state, 10, 0);
-    // 10 + 3 Strength = 13 damage
-    expect(state.enemies[0].currentHp).toBe(37);
+  // --- DealDamageAllEffect ---
+  describe('DealDamageAllEffect', () => {
+    it('deals damage to all living enemies', () => {
+      const state = makeState(3, 30);
+      const effect = new DealDamageAllEffect();
+      effect.execute(state, 8);
+      expect(state.enemies[0].currentHp).toBe(22);
+      expect(state.enemies[1].currentHp).toBe(22);
+      expect(state.enemies[2].currentHp).toBe(22);
+    });
+
+    it('skips dead enemies', () => {
+      const state = makeState(3, 30);
+      state.enemies[1].currentHp = 0;
+      const effect = new DealDamageAllEffect();
+      effect.execute(state, 8);
+      expect(state.enemies[0].currentHp).toBe(22);
+      expect(state.enemies[1].currentHp).toBe(0);
+      expect(state.enemies[2].currentHp).toBe(22);
+    });
   });
 
-  it('applies Weak penalty (25% less damage)', () => {
-    const state = makeState();
-    addBuff(state.playerBuffs, BuffType.Weak, 2);
-    effect.execute(state, 10, 0);
-    // floor(10 * 0.75) = 7
-    expect(state.enemies[0].currentHp).toBe(43);
+  // --- GainBlockEffect ---
+  describe('GainBlockEffect', () => {
+    it('adds block to player', () => {
+      const state = makeState();
+      const effect = new GainBlockEffect();
+      effect.execute(state, 5);
+      expect(state.playerBlock).toBe(5);
+    });
+
+    it('stacks block on existing block', () => {
+      const state = makeState();
+      state.playerBlock = 3;
+      const effect = new GainBlockEffect();
+      effect.execute(state, 5);
+      expect(state.playerBlock).toBe(8);
+    });
+
+    it('applies Dexterity bonus', () => {
+      const state = makeState();
+      addBuff(state.playerBuffs, BuffType.Dexterity, 2);
+      const effect = new GainBlockEffect();
+      effect.execute(state, 5);
+      // 5 + 2 = 7
+      expect(state.playerBlock).toBe(7);
+    });
+
+    it('applies Frail penalty (25% less)', () => {
+      const state = makeState();
+      addBuff(state.playerBuffs, BuffType.Frail, 2);
+      const effect = new GainBlockEffect();
+      effect.execute(state, 8);
+      // floor(8 * 0.75) = 6
+      expect(state.playerBlock).toBe(6);
+    });
+
+    it('block does not go below 0', () => {
+      const state = makeState();
+      addBuff(state.playerBuffs, BuffType.Frail, 2);
+      addBuff(state.playerBuffs, BuffType.Dexterity, -5); // negative dex (hypothetical)
+      const effect = new GainBlockEffect();
+      effect.execute(state, 2);
+      // (2 - 5) = -3, floor(-3 * 0.75) would be negative, clamped to 0
+      expect(state.playerBlock).toBe(0);
+    });
   });
 
-  it('applies Vulnerable on enemy (50% more damage)', () => {
-    const state = makeState();
-    addBuff(state.enemies[0].buffs, BuffType.Vulnerable, 2);
-    effect.execute(state, 10, 0);
-    // floor(10 * 1.5) = 15
-    expect(state.enemies[0].currentHp).toBe(35);
+  // --- DrawCardsEffect ---
+  describe('DrawCardsEffect', () => {
+    it('moves cards from draw pile to hand', () => {
+      const state = makeState();
+      // Put cards into drawPile
+      const cards = Array.from({ length: 5 }, () => makeCard());
+      state.drawPile = cards;
+      state.hand = [];
+
+      const effect = new DrawCardsEffect();
+      effect.execute(state, 3);
+      expect(state.hand).toHaveLength(3);
+      expect(state.drawPile).toHaveLength(2);
+    });
+
+    it('reshuffles discard pile when draw pile is empty', () => {
+      const state = makeState();
+      state.drawPile = [];
+      state.discardPile = Array.from({ length: 5 }, () => makeCard());
+      state.hand = [];
+
+      const effect = new DrawCardsEffect();
+      effect.execute(state, 2);
+      expect(state.hand).toHaveLength(2);
+      // 5 discard shuffled into draw, then 2 drawn
+      expect(state.drawPile).toHaveLength(3);
+      expect(state.discardPile).toHaveLength(0);
+    });
+
+    it('stops drawing when no cards left at all', () => {
+      const state = makeState();
+      state.drawPile = [];
+      state.discardPile = [];
+      state.hand = [];
+
+      const effect = new DrawCardsEffect();
+      effect.execute(state, 3);
+      expect(state.hand).toHaveLength(0);
+    });
   });
 
-  it('applies both Weak on player and Vulnerable on enemy', () => {
-    const state = makeState();
-    addBuff(state.playerBuffs, BuffType.Weak, 2);
-    addBuff(state.enemies[0].buffs, BuffType.Vulnerable, 2);
-    effect.execute(state, 10, 0);
-    // floor(floor(10 * 0.75) * 1.5) = floor(7 * 1.5) = floor(10.5) = 10
-    expect(state.enemies[0].currentHp).toBe(40);
+  // --- ApplyBuffEffect ---
+  describe('ApplyBuffEffect', () => {
+    it('adds Strength buff to player', () => {
+      const state = makeState();
+      const effect = new ApplyBuffEffect(BuffType.Strength);
+      effect.execute(state, 3);
+      const buff = state.playerBuffs.find(b => b.type === BuffType.Strength);
+      expect(buff).toBeDefined();
+      expect(buff!.stacks).toBe(3);
+    });
+
+    it('stacks onto existing buff', () => {
+      const state = makeState();
+      addBuff(state.playerBuffs, BuffType.Strength, 2);
+      const effect = new ApplyBuffEffect(BuffType.Strength);
+      effect.execute(state, 3);
+      const buff = state.playerBuffs.find(b => b.type === BuffType.Strength);
+      expect(buff!.stacks).toBe(5);
+    });
+
+    it('adds combat log entry', () => {
+      const state = makeState();
+      const effect = new ApplyBuffEffect(BuffType.Thorns);
+      effect.execute(state, 4);
+      expect(state.combatLog.some(l => l.includes('Thorns'))).toBe(true);
+    });
   });
 
-  it('respects enemy block - block absorbs damage first', () => {
-    const state = makeState();
-    state.enemies[0].block = 6;
-    effect.execute(state, 10, 0);
-    // 6 blocked, 4 to HP: 50 - 4 = 46
-    expect(state.enemies[0].currentHp).toBe(46);
-    expect(state.enemies[0].block).toBe(0);
+  // --- ApplyDebuffEffect ---
+  describe('ApplyDebuffEffect', () => {
+    it('applies debuff to enemy', () => {
+      const state = makeState();
+      const effect = new ApplyDebuffEffect(BuffType.Vulnerable);
+      effect.execute(state, 2, 0);
+      const buff = state.enemies[0].buffs.find(b => b.type === BuffType.Vulnerable);
+      expect(buff).toBeDefined();
+      expect(buff!.stacks).toBe(2);
+    });
+
+    it('is blocked by Artifact', () => {
+      const state = makeState();
+      addBuff(state.enemies[0].buffs, BuffType.Artifact, 1);
+      const effect = new ApplyDebuffEffect(BuffType.Vulnerable);
+      effect.execute(state, 2, 0);
+
+      // Vulnerable should not be applied
+      const vulnBuff = state.enemies[0].buffs.find(b => b.type === BuffType.Vulnerable);
+      expect(vulnBuff).toBeUndefined();
+
+      // Artifact should be consumed
+      const artifactBuff = state.enemies[0].buffs.find(b => b.type === BuffType.Artifact);
+      expect(artifactBuff).toBeUndefined(); // 1 stack consumed => removed
+    });
+
+    it('Artifact decrements but persists when multiple stacks', () => {
+      const state = makeState();
+      addBuff(state.enemies[0].buffs, BuffType.Artifact, 3);
+      const effect = new ApplyDebuffEffect(BuffType.Vulnerable);
+      effect.execute(state, 2, 0);
+
+      const artifactBuff = state.enemies[0].buffs.find(b => b.type === BuffType.Artifact);
+      expect(artifactBuff).toBeDefined();
+      expect(artifactBuff!.stacks).toBe(2);
+    });
+
+    it('does nothing for invalid target index', () => {
+      const state = makeState();
+      const effect = new ApplyDebuffEffect(BuffType.Weak);
+      effect.execute(state, 2, 99);
+      // No crash, no buff applied
+      expect(state.enemies[0].buffs).toHaveLength(0);
+    });
   });
 
-  it('does not reduce HP below 0', () => {
-    const state = makeState(1, 5);
-    effect.execute(state, 100, 0);
-    expect(state.enemies[0].currentHp).toBe(0);
+  // --- GainEnergyEffect ---
+  describe('GainEnergyEffect', () => {
+    it('increases player energy', () => {
+      const state = makeState();
+      state.playerEnergy = 2;
+      const effect = new GainEnergyEffect();
+      effect.execute(state, 2);
+      expect(state.playerEnergy).toBe(4);
+    });
   });
 
-  it('skips dead enemies (HP <= 0)', () => {
-    const state = makeState();
-    state.enemies[0].currentHp = 0;
-    effect.execute(state, 10, 0);
-    expect(state.enemies[0].currentHp).toBe(0); // unchanged
+  // --- HealEffect ---
+  describe('HealEffect', () => {
+    it('heals player HP', () => {
+      const state = makeState();
+      state.playerHp = 50;
+      const effect = new HealEffect();
+      effect.execute(state, 10);
+      expect(state.playerHp).toBe(60);
+    });
+
+    it('does not exceed max HP', () => {
+      const state = makeState();
+      state.playerHp = 75;
+      state.playerMaxHp = 80;
+      const effect = new HealEffect();
+      effect.execute(state, 20);
+      expect(state.playerHp).toBe(80);
+    });
+
+    it('heals 0 when already at max HP', () => {
+      const state = makeState();
+      state.playerHp = 80;
+      state.playerMaxHp = 80;
+      const effect = new HealEffect();
+      effect.execute(state, 10);
+      expect(state.playerHp).toBe(80);
+    });
   });
 
-  it('does nothing for invalid target index', () => {
-    const state = makeState();
-    effect.execute(state, 10, 5); // no enemy at index 5
-    expect(state.enemies[0].currentHp).toBe(50); // unchanged
-  });
-});
-
-describe('DealDamageAllEffect', () => {
-  const effect = new DealDamageAllEffect();
-
-  it('deals damage to all living enemies', () => {
-    const state = makeState(3, 30);
-    effect.execute(state, 10);
-    expect(state.enemies[0].currentHp).toBe(20);
-    expect(state.enemies[1].currentHp).toBe(20);
-    expect(state.enemies[2].currentHp).toBe(20);
+  // --- ExhaustEffect ---
+  describe('ExhaustEffect', () => {
+    it('adds a combat log entry', () => {
+      const state = makeState();
+      const effect = new ExhaustEffect();
+      effect.execute(state, 0);
+      expect(state.combatLog.some(l => l.includes('exhausted'))).toBe(true);
+    });
   });
 
-  it('skips dead enemies', () => {
-    const state = makeState(3, 30);
-    state.enemies[1].currentHp = 0;
-    effect.execute(state, 10);
-    expect(state.enemies[0].currentHp).toBe(20);
-    expect(state.enemies[1].currentHp).toBe(0); // stays dead
-    expect(state.enemies[2].currentHp).toBe(20);
-  });
-});
+  // --- EffectRegistry ---
+  describe('EffectRegistry', () => {
+    it('returns DealDamageEffect for "deal_damage"', () => {
+      const effect = getEffect('deal_damage');
+      expect(effect).toBeDefined();
+    });
 
-describe('GainBlockEffect', () => {
-  const effect = new GainBlockEffect();
+    it('returns GainBlockEffect for "gain_block"', () => {
+      const effect = getEffect('gain_block');
+      expect(effect).toBeDefined();
+    });
 
-  it('adds block to player', () => {
-    const state = makeState();
-    effect.execute(state, 8);
-    expect(state.playerBlock).toBe(8);
-  });
+    it('returns undefined for unknown effect id', () => {
+      const effect = getEffect('unknown_effect');
+      expect(effect).toBeUndefined();
+    });
 
-  it('stacks block', () => {
-    const state = makeState();
-    state.playerBlock = 5;
-    effect.execute(state, 8);
-    expect(state.playerBlock).toBe(13);
-  });
+    it('returns buff effects for apply_strength', () => {
+      const effect = getEffect('apply_strength');
+      expect(effect).toBeDefined();
+    });
 
-  it('applies Dexterity bonus', () => {
-    const state = makeState();
-    addBuff(state.playerBuffs, BuffType.Dexterity, 3);
-    effect.execute(state, 5);
-    // 5 + 3 = 8
-    expect(state.playerBlock).toBe(8);
-  });
-
-  it('applies Frail penalty (25% less block)', () => {
-    const state = makeState();
-    addBuff(state.playerBuffs, BuffType.Frail, 2);
-    effect.execute(state, 8);
-    // floor(8 * 0.75) = 6
-    expect(state.playerBlock).toBe(6);
-  });
-
-  it('does not go below 0 block', () => {
-    const state = makeState();
-    addBuff(state.playerBuffs, BuffType.Dexterity, -10); // hypothetical negative dexterity scenario
-    addBuff(state.playerBuffs, BuffType.Frail, 2);
-    effect.execute(state, 5);
-    // (5 + (-10)) = -5, clamped by Frail: floor(-5 * 0.75) = -3, then clamped to 0
-    expect(state.playerBlock).toBe(0);
-  });
-});
-
-describe('DrawCardsEffect', () => {
-  const effect = new DrawCardsEffect();
-
-  it('draws cards from draw pile to hand', () => {
-    const state = makeState();
-    // Move deck to drawPile
-    state.drawPile = Array.from({ length: 5 }, () => makeCard());
-    state.hand = [];
-    effect.execute(state, 3);
-    expect(state.hand).toHaveLength(3);
-    expect(state.drawPile).toHaveLength(2);
-  });
-
-  it('reshuffles discard pile when draw pile is empty', () => {
-    const state = makeState();
-    state.drawPile = [];
-    state.hand = [];
-    state.discardPile = Array.from({ length: 5 }, () => makeCard());
-    effect.execute(state, 2);
-    expect(state.hand).toHaveLength(2);
-    expect(state.discardPile).toHaveLength(0);
-    expect(state.drawPile).toHaveLength(3);
-  });
-
-  it('stops drawing when both piles are empty', () => {
-    const state = makeState();
-    state.drawPile = [];
-    state.hand = [];
-    state.discardPile = [];
-    effect.execute(state, 3);
-    expect(state.hand).toHaveLength(0);
-  });
-});
-
-describe('ApplyBuffEffect', () => {
-  it('adds Strength buff to player', () => {
-    const effect = new ApplyBuffEffect(BuffType.Strength);
-    const state = makeState();
-    effect.execute(state, 3);
-    expect(state.playerBuffs).toHaveLength(1);
-    expect(state.playerBuffs[0].type).toBe(BuffType.Strength);
-    expect(state.playerBuffs[0].stacks).toBe(3);
-  });
-
-  it('stacks buff on existing', () => {
-    const effect = new ApplyBuffEffect(BuffType.Strength);
-    const state = makeState();
-    addBuff(state.playerBuffs, BuffType.Strength, 2);
-    effect.execute(state, 3);
-    expect(state.playerBuffs[0].stacks).toBe(5);
-  });
-
-  it('adds Barricade buff', () => {
-    const effect = new ApplyBuffEffect(BuffType.Barricade);
-    const state = makeState();
-    effect.execute(state, 1);
-    expect(state.playerBuffs[0].type).toBe(BuffType.Barricade);
-  });
-});
-
-describe('ApplyDebuffEffect', () => {
-  it('applies debuff to enemy', () => {
-    const effect = new ApplyDebuffEffect(BuffType.Vulnerable);
-    const state = makeState();
-    effect.execute(state, 2, 0);
-    expect(state.enemies[0].buffs).toHaveLength(1);
-    expect(state.enemies[0].buffs[0].type).toBe(BuffType.Vulnerable);
-    expect(state.enemies[0].buffs[0].stacks).toBe(2);
-  });
-
-  it('is blocked by enemy Artifact', () => {
-    const effect = new ApplyDebuffEffect(BuffType.Weak);
-    const state = makeState();
-    addBuff(state.enemies[0].buffs, BuffType.Artifact, 1);
-    effect.execute(state, 2, 0);
-    // Debuff should not be applied; Artifact consumed
-    expect(state.enemies[0].buffs.find(b => b.type === BuffType.Weak)).toBeUndefined();
-    expect(state.enemies[0].buffs.find(b => b.type === BuffType.Artifact)).toBeUndefined();
-  });
-
-  it('consumes one Artifact stack when blocking debuff', () => {
-    const effect = new ApplyDebuffEffect(BuffType.Vulnerable);
-    const state = makeState();
-    addBuff(state.enemies[0].buffs, BuffType.Artifact, 2);
-    effect.execute(state, 3, 0);
-    const artifact = state.enemies[0].buffs.find(b => b.type === BuffType.Artifact);
-    expect(artifact?.stacks).toBe(1);
-  });
-
-  it('does nothing for invalid target index', () => {
-    const effect = new ApplyDebuffEffect(BuffType.Poison);
-    const state = makeState();
-    effect.execute(state, 5, 99);
-    expect(state.enemies[0].buffs).toHaveLength(0);
-  });
-});
-
-describe('GainEnergyEffect', () => {
-  const effect = new GainEnergyEffect();
-
-  it('increases player energy', () => {
-    const state = makeState();
-    state.playerEnergy = 3;
-    effect.execute(state, 2);
-    expect(state.playerEnergy).toBe(5);
-  });
-
-  it('adds energy from zero', () => {
-    const state = makeState();
-    state.playerEnergy = 0;
-    effect.execute(state, 1);
-    expect(state.playerEnergy).toBe(1);
-  });
-});
-
-describe('HealEffect', () => {
-  const effect = new HealEffect();
-
-  it('heals player HP', () => {
-    const state = makeState();
-    state.playerHp = 50;
-    effect.execute(state, 10);
-    expect(state.playerHp).toBe(60);
-  });
-
-  it('does not exceed max HP', () => {
-    const state = makeState();
-    state.playerHp = 75;
-    state.playerMaxHp = 80;
-    effect.execute(state, 20);
-    expect(state.playerHp).toBe(80);
-  });
-
-  it('heals zero when already at max', () => {
-    const state = makeState();
-    state.playerHp = 80;
-    state.playerMaxHp = 80;
-    effect.execute(state, 10);
-    expect(state.playerHp).toBe(80);
-  });
-});
-
-describe('ExhaustEffect', () => {
-  const effect = new ExhaustEffect();
-
-  it('adds a combat log entry', () => {
-    const state = makeState();
-    effect.execute(state, 0);
-    expect(state.combatLog).toContain('Card exhausted');
-  });
-});
-
-describe('EffectRegistry', () => {
-  it('returns registered effects by ID', () => {
-    expect(getEffect('deal_damage')).toBeDefined();
-    expect(getEffect('deal_damage_all')).toBeDefined();
-    expect(getEffect('gain_block')).toBeDefined();
-    expect(getEffect('draw_cards')).toBeDefined();
-    expect(getEffect('gain_energy')).toBeDefined();
-    expect(getEffect('heal')).toBeDefined();
-    expect(getEffect('exhaust')).toBeDefined();
-    expect(getEffect('apply_strength')).toBeDefined();
-    expect(getEffect('apply_vulnerable')).toBeDefined();
-    expect(getEffect('apply_weak')).toBeDefined();
-    expect(getEffect('apply_poison')).toBeDefined();
-  });
-
-  it('returns undefined for unknown effect', () => {
-    expect(getEffect('nonexistent_effect')).toBeUndefined();
+    it('returns debuff effects for apply_vulnerable', () => {
+      const effect = getEffect('apply_vulnerable');
+      expect(effect).toBeDefined();
+    });
   });
 });

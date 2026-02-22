@@ -1,6 +1,6 @@
 import { ICardEffect } from './ICardEffect';
 import { CombatState } from '../CombatState';
-import { shuffleArray } from '../SeededRandom';
+import { SeededRandom } from '../SeededRandom';
 
 export class DrawCardsEffect implements ICardEffect {
   execute(state: CombatState, value: number): void {
@@ -10,9 +10,11 @@ export class DrawCardsEffect implements ICardEffect {
           state.combatLog.push('No cards left to draw');
           return;
         }
-        // Shuffle discard into draw
-        state.drawPile = shuffleArray(state.discardPile, Date.now());
+        // Shuffle discard into draw using deterministic seed from game state
+        const rng = new SeededRandom(state.turn * 1000 + state.cardsPlayedThisTurn * 100 + i);
+        state.drawPile = [...state.discardPile];
         state.discardPile = [];
+        rng.shuffle(state.drawPile);
         state.combatLog.push('Shuffled discard pile into draw pile');
       }
 

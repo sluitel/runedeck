@@ -226,18 +226,22 @@ export class CombatEngine {
     // Tick player debuffs
     this.state.playerBuffs = tickDebuffs(this.state.playerBuffs);
 
-    // Draw new hand
-    let drawCount = 5;
-    const drawReduction = getBuffStacks(this.state.playerBuffs, BuffType.DrawReduction);
-    drawCount -= drawReduction;
-    if (drawCount < 0) drawCount = 0;
+    // Draw new hand (skip if NoDraw debuff)
+    if (!hasBuff(this.state.playerBuffs, BuffType.NoDraw)) {
+      let drawCount = 5;
+      const drawReduction = getBuffStacks(this.state.playerBuffs, BuffType.DrawReduction);
+      drawCount -= drawReduction;
+      if (drawCount < 0) drawCount = 0;
 
-    // Inkwell rune: draw 1 extra
-    if (this.hasRune('rune_inkwell')) {
-      drawCount++;
+      // Inkwell rune: draw 1 extra
+      if (this.hasRune('rune_inkwell')) {
+        drawCount++;
+      }
+
+      this.drawCards(drawCount);
+    } else {
+      this.state.combatLog.push('Cannot draw cards this turn (NoDraw)');
     }
-
-    this.drawCards(drawCount);
 
     this.emit({ type: 'turn_start', data: { turn: this.state.turn } });
   }
@@ -378,15 +382,15 @@ export class CombatEngine {
 
     if (damage < 0) damage = 0;
 
+    // Intangible: reduce ALL incoming damage to 1 (before block)
+    if (hasBuff(this.state.playerBuffs, BuffType.Intangible) && damage > 1) {
+      damage = 1;
+    }
+
     // Apply to player block first
     const blocked = Math.min(this.state.playerBlock, damage);
     this.state.playerBlock -= blocked;
     let remainingDamage = damage - blocked;
-
-    // Intangible: reduce to 1
-    if (hasBuff(this.state.playerBuffs, BuffType.Intangible) && remainingDamage > 1) {
-      remainingDamage = 1;
-    }
 
     if (remainingDamage > 0) {
       this.state.playerHp -= remainingDamage;
@@ -559,7 +563,7 @@ export class CombatEngine {
     return {
       playerWon: this.state.playerWon,
       playerHp: this.state.playerHp,
-      goldEarned: this.state.playerWon ? 15 + Math.floor(Math.random() * 10) : 0,
+      goldEarned: this.state.playerWon ? 15 + this.rng.nextInt(0, 9) : 0,
       cardsPlayed: this.totalCardsPlayed,
       damageDealt: this.totalDamageDealt,
     };

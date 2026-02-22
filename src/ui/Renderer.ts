@@ -6,6 +6,10 @@ import { CombatState } from '../engine/CombatState';
 import { RunManager } from '../game/RunManager';
 import { isDebuff, getBuffName } from '../models/Buff';
 import { Buff } from '../models/Buff';
+import { escapeHtml } from './sanitize';
+
+// Helper: sanitize all data-driven strings for safe innerHTML usage
+const h = escapeHtml;
 
 const CARD_ICONS: Record<string, string> = {
   'Strike': '\u2694',
@@ -108,6 +112,8 @@ export class Renderer {
   private cardPreviewVisible: boolean = false;
   private deckViewVisible: boolean = false;
   private deckViewContext: 'deck' | 'upgrade' | 'remove' = 'deck';
+  private boundMouseMove: ((e: MouseEvent) => void) | null = null;
+  private boundMouseUp: (() => void) | null = null;
 
   constructor(root: HTMLElement, gameManager: GameManager) {
     this.root = root;
@@ -410,12 +416,12 @@ export class Renderer {
            data-index="${index}"
            id="card-${card.instanceId}">
         <div class="card-header">
-          <div class="card-name">${card.data.cardName}</div>
+          <div class="card-name">${h(card.data.cardName)}</div>
           <div class="card-cost">${card.data.energyCost >= 0 ? card.data.energyCost : 'X'}</div>
         </div>
         <div class="card-art">${icon}</div>
-        <div class="card-desc">${card.data.description}</div>
-        <div class="card-type">${card.data.type}</div>
+        <div class="card-desc">${h(card.data.description)}</div>
+        <div class="card-type">${h(card.data.type)}</div>
         <div class="card-rarity ${rarityClass}"></div>
       </div>
     `;
@@ -429,12 +435,12 @@ export class Renderer {
     return `
       <div class="draft-card ${typeClass}" data-index="${index}">
         <div class="card-header">
-          <div class="card-name">${card.cardName}</div>
+          <div class="card-name">${h(card.cardName)}</div>
           <div class="card-cost">${card.energyCost >= 0 ? card.energyCost : 'X'}</div>
         </div>
         <div class="card-art">${icon}</div>
-        <div class="card-desc">${card.description}</div>
-        <div class="card-type">${card.type}</div>
+        <div class="card-desc">${h(card.description)}</div>
+        <div class="card-type">${h(card.type)}</div>
         <div class="card-rarity ${rarityClass}"></div>
       </div>
     `;
@@ -444,7 +450,7 @@ export class Renderer {
     if (enemy.currentHp <= 0) {
       return `<div class="enemy-container enemy-dead">
         <div class="enemy-sprite normal">\u{1F480}</div>
-        <div class="enemy-name">${enemy.data.enemyName}</div>
+        <div class="enemy-name">${h(enemy.data.enemyName)}</div>
         <div class="enemy-hp-bar"><div class="enemy-hp-fill" style="width:0%"></div></div>
       </div>`;
     }
@@ -457,9 +463,9 @@ export class Renderer {
 
     return `
       <div class="enemy-container" data-enemy-index="${index}">
-        <div class="enemy-intent ${intentClass}">${intent.description}</div>
+        <div class="enemy-intent ${intentClass}">${h(intent.description)}</div>
         <div class="enemy-sprite ${tierClass}">${icon}</div>
-        <div class="enemy-name">${enemy.data.enemyName}</div>
+        <div class="enemy-name">${h(enemy.data.enemyName)}</div>
         <div class="enemy-hp-bar">
           <div class="enemy-hp-fill" style="width:${hpPercent}%"></div>
           <div class="enemy-hp-text">${enemy.currentHp}/${enemy.maxHp}</div>
@@ -548,7 +554,7 @@ export class Renderer {
           ${Array.from({ length: run.state.maxRuneSlots }, (_, i) => {
             const rune = run.state.runes[i];
             if (rune) {
-              return `<div class="rune-slot filled" title="${rune.data.runeName}: ${rune.data.description}">\u{1F48E}</div>`;
+              return `<div class="rune-slot filled" title="${h(rune.data.runeName)}: ${h(rune.data.description)}">\u{1F48E}</div>`;
             }
             return `<div class="rune-slot">\u25CB</div>`;
           }).join('')}
@@ -612,8 +618,8 @@ export class Renderer {
             <div class="reward-section">
               <h4>Rune</h4>
               <div class="reward-rune" id="btn-take-rune">
-                <div class="rune-name">${run.rewardRune.runeName}</div>
-                <div class="rune-desc">${run.rewardRune.description}</div>
+                <div class="rune-name">${h(run.rewardRune.runeName)}</div>
+                <div class="rune-desc">${h(run.rewardRune.description)}</div>
               </div>
             </div>
           ` : ''}
@@ -699,11 +705,11 @@ export class Renderer {
             ${run.shopItems.map((item, i) => `
               <div class="shop-item ${item.sold ? 'sold' : ''} ${run.state.gold < item.cost ? 'unaffordable' : ''}" data-index="${i}">
                 <div class="shop-item-info">
-                  <h4>${item.type === 'card' ? item.card!.cardName :
-                        item.type === 'rune' ? item.rune!.runeName :
+                  <h4>${item.type === 'card' ? h(item.card!.cardName) :
+                        item.type === 'rune' ? h(item.rune!.runeName) :
                         'Remove a Card'}</h4>
-                  <p>${item.type === 'card' ? item.card!.description :
-                       item.type === 'rune' ? item.rune!.description :
+                  <p>${item.type === 'card' ? h(item.card!.description) :
+                       item.type === 'rune' ? h(item.rune!.description) :
                        'Remove one card from your deck'}</p>
                 </div>
                 <div class="shop-item-price">${item.sold ? 'SOLD' : `${item.cost}g`}</div>
@@ -750,13 +756,13 @@ export class Renderer {
         ${this.renderTopBar(run)}
         ${this.renderPlayerStatus(run)}
         <div class="event-content">
-          <div class="event-title">${event.title}</div>
-          <div class="event-description">${event.description}</div>
+          <div class="event-title">${h(event.title)}</div>
+          <div class="event-description">${h(event.description)}</div>
           <div class="event-choices">
             ${event.choices.map((choice, i) => `
               <div class="event-choice" data-index="${i}">
-                <h4>${choice.label}</h4>
-                <p>${choice.description}</p>
+                <h4>${h(choice.label)}</h4>
+                <p>${h(choice.description)}</p>
               </div>
             `).join('')}
           </div>
@@ -798,8 +804,8 @@ export class Renderer {
             <div class="reward-section">
               <h4>Rune</h4>
               <div class="reward-rune" id="btn-take-rune">
-                <div class="rune-name">${run.rewardRune.runeName}</div>
-                <div class="rune-desc">${run.rewardRune.description}</div>
+                <div class="rune-name">${h(run.rewardRune.runeName)}</div>
+                <div class="rune-desc">${h(run.rewardRune.description)}</div>
               </div>
             </div>
           ` : ''}
@@ -855,8 +861,8 @@ export class Renderer {
             ${items.map(item => `
               <div class="vault-item ${item.unlocked ? 'unlocked' : ''}" data-id="${item.id}">
                 <div class="vault-item-info">
-                  <h4>${item.name}</h4>
-                  <p>${item.description}</p>
+                  <h4>${h(item.name)}</h4>
+                  <p>${h(item.description)}</p>
                 </div>
                 <div class="vault-item-cost">
                   ${item.unlocked ? 'UNLOCKED' : `${item.cost} shards`}
@@ -1038,16 +1044,25 @@ export class Renderer {
       });
     });
 
-    // Global mouse handlers
-    document.addEventListener('mousemove', (e: MouseEvent) => {
+    // Global mouse handlers — remove old listeners to prevent leaks
+    if (this.boundMouseMove) {
+      document.removeEventListener('mousemove', this.boundMouseMove);
+    }
+    if (this.boundMouseUp) {
+      document.removeEventListener('mouseup', this.boundMouseUp);
+    }
+
+    this.boundMouseMove = (e: MouseEvent) => {
       if (!this.dragState.isDragging) return;
       this.moveDrag(e.clientX, e.clientY, enemyArea, playZone);
-    });
-
-    document.addEventListener('mouseup', () => {
+    };
+    this.boundMouseUp = () => {
       if (!this.dragState.isDragging) return;
       this.endDrag(run, enemyArea);
-    });
+    };
+
+    document.addEventListener('mousemove', this.boundMouseMove);
+    document.addEventListener('mouseup', this.boundMouseUp);
   }
 
   private startDrag(card: CardInstance, el: HTMLElement, x: number, y: number): void {

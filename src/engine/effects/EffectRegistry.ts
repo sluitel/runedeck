@@ -4,10 +4,15 @@ import { GainBlockEffect } from './GainBlockEffect';
 import { DrawCardsEffect } from './DrawCardsEffect';
 import { ApplyBuffEffect } from './ApplyBuffEffect';
 import { ApplyDebuffEffect } from './ApplyDebuffEffect';
+import { ApplyDebuffAllEffect } from './ApplyDebuffAllEffect';
 import { DealDamageAllEffect } from './DealDamageAllEffect';
 import { GainEnergyEffect } from './GainEnergyEffect';
 import { HealEffect } from './HealEffect';
 import { ExhaustEffect } from './ExhaustEffect';
+import { BodySlamEffect } from './BodySlamEffect';
+import { MultiHitEffect } from './MultiHitEffect';
+import { DoublePoisonEffect } from './DoublePoison';
+import { BaneEffect } from './ConditionalDamageEffect';
 import { BuffType } from '../../models/Enums';
 
 const effectRegistry: Map<string, ICardEffect> = new Map();
@@ -29,6 +34,13 @@ registerEffect('gain_energy', new GainEnergyEffect());
 registerEffect('heal', new HealEffect());
 registerEffect('exhaust', new ExhaustEffect());
 
+// Special card effects
+registerEffect('body_slam', new BodySlamEffect());
+registerEffect('multi_hit_3', new MultiHitEffect(3));
+registerEffect('multi_hit_2', new MultiHitEffect(2));
+registerEffect('double_poison', new DoublePoisonEffect());
+registerEffect('bane', new BaneEffect());
+
 // Buff effects (self-targeting)
 registerEffect('apply_strength', new ApplyBuffEffect(BuffType.Strength));
 registerEffect('apply_dexterity', new ApplyBuffEffect(BuffType.Dexterity));
@@ -43,10 +55,16 @@ registerEffect('apply_plated_armor', new ApplyBuffEffect(BuffType.PlatedArmor));
 registerEffect('apply_artifact', new ApplyBuffEffect(BuffType.Artifact));
 registerEffect('apply_intangible', new ApplyBuffEffect(BuffType.Intangible));
 
-// Debuff effects (enemy-targeting)
+// Debuff effects (single target)
 registerEffect('apply_vulnerable', new ApplyDebuffEffect(BuffType.Vulnerable));
 registerEffect('apply_weak', new ApplyDebuffEffect(BuffType.Weak));
 registerEffect('apply_poison', new ApplyDebuffEffect(BuffType.Poison));
 registerEffect('apply_frail', new ApplyDebuffEffect(BuffType.Frail));
+
+// Debuff effects (ALL enemies)
+registerEffect('apply_vulnerable_all', new ApplyDebuffAllEffect(BuffType.Vulnerable));
+registerEffect('apply_weak_all', new ApplyDebuffAllEffect(BuffType.Weak));
+registerEffect('apply_poison_all', new ApplyDebuffAllEffect(BuffType.Poison));
+registerEffect('apply_frail_all', new ApplyDebuffAllEffect(BuffType.Frail));
 
 export { effectRegistry };
